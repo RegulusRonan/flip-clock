@@ -313,6 +313,7 @@ const current = () => (state.view === "timer" ? timer : state.view === "pomo" ? 
 document.getElementById("controls").addEventListener("click", (e) => {
   const btn = e.target.closest("button");
   if (!btn) return;
+  if (lastPointer !== "mouse") btn.blur(); // don't leave a tapped button highlighted
   unlockAudio();
   if (btn.dataset.view) setView(btn.dataset.view);
   else current()?.[btn.dataset.act]?.();
@@ -414,12 +415,20 @@ function dismissDone() {
 // Show the controls on activity, hide them (and the cursor) when idle
 const controlsEl = document.getElementById("controls");
 let idleTimer = null;
+// Phones keep the last tapped button in a "hover" state, so only trust
+// :hover (to keep the controls up while the mouse is over them) for a mouse.
+let lastPointer = "mouse";
+document.addEventListener("pointerdown", (e) => { lastPointer = e.pointerType; }, true);
+document.addEventListener("pointermove", (e) => {
+  if (e.pointerType === "mouse") lastPointer = "mouse";
+}, true);
+
 function wake() {
   controlsEl.classList.add("show");
   document.body.classList.remove("idle");
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
-    if (controlsEl.matches(":hover")) return wake();
+    if (lastPointer === "mouse" && controlsEl.matches(":hover")) return wake();
     controlsEl.classList.remove("show");
     document.body.classList.add("idle");
   }, 3000);

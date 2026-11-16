@@ -190,7 +190,9 @@ body.idle { cursor: none; }
   color: #6f6f6f;
 }
 
-.controls .tabs button:hover { color: #bbb; }
+@media (hover: hover) {
+  .controls .tabs button:hover { color: #bbb; }
+}
 .controls .tabs button.active { color: #fff; }
 
 .for-pomo,
@@ -230,11 +232,18 @@ body.done .card { animation: done-pulse 1s ease-in-out infinite; }
   transition: border-color 200ms, color 200ms;
 }
 
-.controls button:hover,
 .controls button:focus-visible {
   border-color: #777;
   color: #fff;
   outline: none;
+}
+
+/* Only real mice get hover highlights; phones would keep them "stuck" */
+@media (hover: hover) {
+  .controls button:hover {
+    border-color: #777;
+    color: #fff;
+  }
 }
 
 /* ---------- Phones ---------- */
