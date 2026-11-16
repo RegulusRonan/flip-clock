@@ -208,10 +208,19 @@ function timerEnd() {
 // ---------- Sound ----------
 
 let audio = null;
+// Phones only let a page make sound after a real tap (the end of a touch,
+// not its start). This runs on every tap/click/key and switches the sound on
+// as soon as the phone allows it, then plays one silent sample, which iOS
+// needs to fully unlock audio.
 function unlockAudio() {
   try {
     audio ??= new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === "running") return;
     audio.resume?.();
+    const src = audio.createBufferSource();
+    src.buffer = audio.createBuffer(1, 1, audio.sampleRate);
+    src.connect(audio.destination);
+    src.start();
   } catch {}
 }
 
@@ -498,6 +507,11 @@ function wake() {
 document.addEventListener("mousemove", wake);
 ["pointerdown", "keydown"].forEach((ev) =>
   document.addEventListener(ev, () => { unlockAudio(); keepAwake(); wake(); dismissDone(); })
+);
+// The end of a tap is what phones count as permission for sound (and
+// sometimes for keeping the screen on), so try both again there.
+["pointerup", "touchend", "click"].forEach((ev) =>
+  document.addEventListener(ev, () => { unlockAudio(); keepAwake(); }, { passive: true })
 );
 wake();
 
