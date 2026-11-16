@@ -34,7 +34,9 @@ body {
 body {
   display: grid;
   place-items: center;
-  padding-bottom: 106px; /* room for the controls at the bottom */
+  /* room for the controls at the bottom (82px tall, sitting 24px up or
+     above the iPhone home bar, whichever is higher) */
+  padding-bottom: calc(82px + max(24px, env(safe-area-inset-bottom)));
   color: var(--label);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -262,11 +264,12 @@ body.done .card { animation: done-pulse 1s ease-in-out infinite; }
 
 /* Portrait: stack the cards and make them fill the screen.
    The clock is ~3.84 cards tall with the date and quote; 176px is the
-   controls plus some breathing room. */
+   controls plus some breathing room, on top of the status bar / home bar
+   space iPhones reserve (safe-area insets). */
 @media (max-aspect-ratio: 3/4) {
-  :root { --size: min(56vw, calc((100vh - 176px) / 3.84)); }
+  :root { --size: min(56vw, calc((100vh - 176px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 3.84)); }
   @supports (height: 1dvh) {
-    :root { --size: min(56vw, calc((100dvh - 176px) / 3.84)); }
+    :root { --size: min(56vw, calc((100dvh - 176px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 3.84)); }
   }
 
   /* Center the clock in the space above the controls */
@@ -282,12 +285,12 @@ body.done .card { animation: done-pulse 1s ease-in-out infinite; }
 
   /* Pomodoro only has two cards, so let them be bigger in the same space */
   body[data-view="pomo"] .card {
-    --size: min(56vw, calc((100vh - 176px) / 3.84 * 1.5));
+    --size: min(56vw, calc((100vh - 176px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 3.84 * 1.5));
     --radius: calc(var(--size) * 0.12);
   }
   @supports (height: 1dvh) {
     body[data-view="pomo"] .card {
-      --size: min(56vw, calc((100dvh - 176px) / 3.84 * 1.5));
+      --size: min(56vw, calc((100dvh - 176px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 3.84 * 1.5));
     }
   }
 }
