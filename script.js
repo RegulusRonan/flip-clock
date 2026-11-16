@@ -439,10 +439,10 @@ document.addEventListener("mousemove", wake);
 );
 wake();
 
-// ---------- Rotating quotes ----------
+// ---------- Random quotes ----------
 
 const QUOTES = [
-  "LESS IS MORE",
+  "MAKE IT HAPPEN",
   "DO IT NOW",
   "ONE MORE REP",
   "START BEFORE YOU'RE READY",
@@ -468,13 +468,23 @@ const QUOTE_SECONDS = 30; // how long each quote stays up
 const FADE_MS = 600;      // matches the .motto transition in style.css
 
 const mottoEl = document.getElementById("motto");
-let quoteIndex = 0;
+let quoteIndex = -1;
+
+// Pick a random quote, never the same one twice in a row
+function randomQuote() {
+  let i;
+  do i = Math.floor(Math.random() * QUOTES.length);
+  while (i === quoteIndex && QUOTES.length > 1);
+  quoteIndex = i;
+  return QUOTES[i];
+}
+
+mottoEl.textContent = randomQuote();
 
 setInterval(() => {
-  quoteIndex = (quoteIndex + 1) % QUOTES.length;
   mottoEl.classList.add("hidden");
   setTimeout(() => {
-    mottoEl.textContent = QUOTES[quoteIndex];
+    mottoEl.textContent = randomQuote();
     mottoEl.classList.remove("hidden");
   }, FADE_MS);
 }, QUOTE_SECONDS * 1000);
