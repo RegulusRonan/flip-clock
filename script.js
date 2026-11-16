@@ -3,10 +3,28 @@ const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", 
 
 const pad = (n) => String(n).padStart(2, "0");
 
-function half(cls, value) {
+// Only touch the page when something actually changed
+function setText(el, value) {
+  if (el.textContent !== value) el.textContent = value;
+}
+
+// How long each half of a flip takes (none if the phone asks for less motion)
+const FLIP_MS = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 300;
+
+// One half of a card: a box showing the top or bottom of the digits. Flaps
+// also get a shade layer that darkens them as they turn.
+function makeHalf(cls, withShade = false) {
   const el = document.createElement("div");
   el.className = `half ${cls}`;
-  el.innerHTML = `<span>${value}</span>`;
+  const span = document.createElement("span");
+  span.append(document.createTextNode(""));
+  el.append(span);
+  el.text = span.firstChild; // the text node, updated in place
+  if (withShade) {
+    el.shade = document.createElement("div");
+    el.shade.className = "shade";
+    el.append(el.shade);
+  }
   return el;
 }
 
@@ -14,9 +32,14 @@ class FlipCard {
   constructor(el) {
     this.el = el;
     this.value = null;
-    this.top = half("top", "");
-    this.bottom = half("bottom", "");
-    el.append(this.top, this.bottom);
+    this.anims = [];
+    // Built once and reused for every flip
+    this.top = makeHalf("top");
+    this.bottom = makeHalf("bottom");
+    this.flapTop = makeHalf("top flap", true);
+    this.flapBottom = makeHalf("bottom flap", true);
+    this.flapTop.hidden = this.flapBottom.hidden = true;
+    el.append(this.top, this.bottom, this.flapTop, this.flapBottom);
   }
 
   set(value) {
@@ -24,30 +47,42 @@ class FlipCard {
     const old = this.value;
     this.value = value;
 
-    // First render: no animation
-    if (old === null) {
-      this.top.firstChild.textContent = value;
-      this.bottom.firstChild.textContent = value;
+    // First render, or no animation wanted: just show the value
+    if (old === null || FLIP_MS === 0) {
+      this.top.text.data = this.bottom.text.data = value;
       return;
     }
 
-    // Clear any flaps still running from a previous flip
-    this.el.querySelectorAll(".flap").forEach((f) => f.remove());
+    // Stop a flip that's still running
+    this.anims.forEach((a) => a.cancel());
 
     // Static halves: new value on top (revealed as the flap falls),
     // old value on bottom (covered when the lower flap lands)
-    this.top.firstChild.textContent = value;
-    this.bottom.firstChild.textContent = old;
+    this.top.text.data = value;
+    this.bottom.text.data = old;
+    this.flapTop.text.data = old;
+    this.flapBottom.text.data = value;
+    this.flapTop.hidden = this.flapBottom.hidden = false;
 
-    const flapTop = half("top flap", old);
-    const flapBottom = half("bottom flap", value);
-    this.el.append(flapTop, flapBottom);
+    // Only transform and opacity are animated, which phones can do on the
+    // graphics chip without redrawing the digits
+    const fall = { duration: FLIP_MS, easing: "ease-in", fill: "forwards" };
+    const land = { duration: FLIP_MS, delay: FLIP_MS, easing: "ease-out", fill: "both" };
+    const landing = this.flapBottom.animate(
+      [{ transform: "rotateX(90deg)" }, { transform: "rotateX(0deg)" }], land);
+    this.anims = [
+      this.flapTop.animate([{ transform: "rotateX(0deg)" }, { transform: "rotateX(-90deg)" }], fall),
+      this.flapTop.shade.animate([{ opacity: 0 }, { opacity: 0.4 }], fall),
+      landing,
+      this.flapBottom.shade.animate([{ opacity: 0.4 }, { opacity: 0 }], land),
+    ];
 
-    flapBottom.addEventListener("animationend", () => {
-      this.bottom.firstChild.textContent = value;
-      flapTop.remove();
-      flapBottom.remove();
-    }, { once: true });
+    landing.onfinish = () => {
+      this.bottom.text.data = value;
+      this.flapTop.hidden = this.flapBottom.hidden = true;
+      this.anims.forEach((a) => a.cancel());
+      this.anims = [];
+    };
   }
 }
 
@@ -272,31 +307,39 @@ function chime() {
 let tickOn = true;
 try { tickOn = localStorage.getItem("flipclock.tick") !== "off"; } catch {}
 
+// Tick and bell only play when switched on, allowed, and on screen
+const canTick = () => tickOn && audio?.state === "running" && !document.hidden;
+
+// The tick's sound (30ms of fading noise) and its filter + volume are built
+// once; each tick just plays the sound through them again.
 let tickBuffer = null;
+let tickInput = null;
 function playTick() {
-  if (!tickOn || !audio || audio.state !== "running" || document.hidden) return;
+  if (!canTick()) return;
   if (!tickBuffer) {
-    const len = Math.floor(audio.sampleRate * 0.03); // 30ms
+    const len = Math.floor(audio.sampleRate * 0.03);
     tickBuffer = audio.createBuffer(1, len, audio.sampleRate);
     const data = tickBuffer.getChannelData(0);
     for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 4;
+
+    tickInput = audio.createBiquadFilter();
+    tickInput.type = "bandpass";
+    tickInput.frequency.value = 1800; // lower = gentler, less "clicky"
+    tickInput.Q.value = 0.9;
+    const gain = audio.createGain();
+    gain.gain.value = 0.06; // very soft
+    tickInput.connect(gain).connect(audio.destination);
   }
   const src = audio.createBufferSource();
   src.buffer = tickBuffer;
-  const filter = audio.createBiquadFilter();
-  filter.type = "bandpass";
-  filter.frequency.value = 1800; // lower = gentler, less "clicky"
-  filter.Q.value = 0.9;
-  const gain = audio.createGain();
-  gain.gain.value = 0.06; // very soft (was 0.18)
-  src.connect(filter).connect(gain).connect(audio.destination);
+  src.connect(tickInput);
   src.start();
 }
 
 // Every quarter hour (:00, :15, :30, :45) a soft bell plays instead of the
 // tick. Follows the Tick on/off button too.
 function playQuarter() {
-  if (!tickOn || !audio || audio.state !== "running" || document.hidden) return;
+  if (!canTick()) return;
   const t = audio.currentTime;
   // A bell-like tone: a main note plus two quieter overtones, fading out
   [[1318.5, 1], [2637, 0.35], [3955.5, 0.12]].forEach(([freq, level]) => {
@@ -357,7 +400,7 @@ function render() {
   const { view, pomo: p, timer: t } = state;
   const now = new Date();
 
-  document.body.dataset.view = view;
+  if (document.body.dataset.view !== view) document.body.dataset.view = view;
   document.body.classList.toggle("done", view === "timer" && t.done);
   document.body.classList.toggle("timer-set", view === "timer" && !t.running);
   tabBtns.forEach((b) => b.classList.toggle("active", b.dataset.view === view));
@@ -370,26 +413,26 @@ function render() {
     let label = PHASE_LABEL[p.phase];
     if (p.phase === "focus") label += `  ${p.round}/${ROUNDS}`;
     if (!p.running && p.left < DURATION[p.phase]) label += "  ·  Paused";
-    dateEl.textContent = label;
-    runBtn.textContent = p.running ? "Pause" : "Start";
+    setText(dateEl, label);
+    setText(runBtn, p.running ? "Pause" : "Start");
   } else if (view === "timer") {
     const secs = secondsLeft(t);
     cards.h.set(pad(Math.floor(secs / 3600)));
     cards.m.set(pad(Math.floor((secs % 3600) / 60)));
     cards.s.set(pad(secs % 60));
 
-    dateEl.textContent =
+    setText(dateEl,
       t.done ? "Time's up" :
       t.running ? "Timer" :
       t.left === 0 ? "Scroll the numbers to set a time" :
-      t.left < t.total ? "Timer  ·  Paused" : "Timer";
-    runBtn.textContent = t.running ? "Pause" : "Start";
+      t.left < t.total ? "Timer  ·  Paused" : "Timer");
+    setText(runBtn, t.running ? "Pause" : "Start");
   } else {
     cards.h.set(pad(now.getHours()));
     cards.m.set(pad(now.getMinutes()));
     cards.s.set(pad(now.getSeconds()));
-    dateEl.textContent =
-      `${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}  ${DAYS[now.getDay()]}`;
+    setText(dateEl,
+      `${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}  ${DAYS[now.getDay()]}`);
   }
 
   // Quarter hours of the real time get the bell (in every view)
@@ -412,7 +455,8 @@ function render() {
   // Tab title shows whatever is counting down (current view first)
   const pomoTitle = p.running && `${mmss(secondsLeft(p))} · ${PHASE_LABEL[p.phase]}`;
   const timerTitle = t.running && `${hhmmss(secondsLeft(t))} · Timer`;
-  document.title = (view === "timer" ? timerTitle || pomoTitle : pomoTitle || timerTitle) || "Flip Clock";
+  const title = (view === "timer" ? timerTitle || pomoTitle : pomoTitle || timerTitle) || "Flip Clock";
+  if (document.title !== title) document.title = title;
 }
 
 function tick() {
@@ -575,7 +619,14 @@ function wake() {
     document.body.classList.add("idle");
   }, 1000); // hide the controls 1 second after the last activity
 }
-document.addEventListener("mousemove", wake);
+// Mouse moves fire many times a second; handling ~10 a second is plenty
+let lastMouseWake = 0;
+document.addEventListener("mousemove", () => {
+  const t = performance.now();
+  if (t - lastMouseWake < 100) return;
+  lastMouseWake = t;
+  wake();
+});
 ["pointerdown", "keydown"].forEach((ev) =>
   document.addEventListener(ev, () => { unlockAudio(); keepAwake(); wake(); dismissDone(); })
 );

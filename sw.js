@@ -54,10 +54,18 @@ function sameBytes(a, b) {
 
 async function refresh(key, clientId) {
   try {
-    const fresh = await fetch(key, { cache: "no-store" });
+    // "no-cache" asks the server whether the file changed (using its version
+    // tag, the ETag). Unchanged files answer with a tiny "not modified"
+    // instead of being downloaded again.
+    const fresh = await fetch(key, { cache: "no-cache" });
     if (!fresh.ok) return;
     const cache = await caches.open(CACHE);
     const old = await cache.match(key);
+
+    // Same version tag as the saved copy: nothing to do
+    const tag = fresh.headers.get("etag");
+    if (old && tag && old.headers.get("etag") === tag) return;
+
     let changed = false;
     if (old) {
       const [a, b] = await Promise.all([old.arrayBuffer(), fresh.clone().arrayBuffer()]);
