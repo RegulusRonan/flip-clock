@@ -139,22 +139,47 @@ const pomo = {
     update();
   },
   skip() {
-    const p = state.pomo;
-    if (p.phase === "focus") {
-      p.phase = p.round >= ROUNDS ? "long" : "short";
-    } else {
-      p.round = p.phase === "long" ? 1 : p.round + 1;
-      p.phase = "focus";
-    }
-    pomo.reset(); // next session waits for Start
+    nextPhase(state.pomo);
+    pomo.reset(); // a skipped-to session waits for Start
   },
 };
+
+// focus -> short break -> focus ... -> long break after ROUNDS focus sessions
+function nextPhase(p) {
+  if (p.phase === "focus") {
+    p.phase = p.round >= ROUNDS ? "long" : "short";
+  } else {
+    p.round = p.phase === "long" ? 1 : p.round + 1;
+    p.phase = "focus";
+  }
+}
+
+// Auto-start: when a session ends, the next one starts by itself.
+let autoStart = true;
+try { autoStart = localStorage.getItem("flipclock.autostart") !== "off"; } catch {}
 
 function pomoEnd() {
   const p = state.pomo;
   if (!p.running || remaining(p) > 0) return;
   chime();
-  pomo.skip();
+
+  if (!autoStart) {
+    nextPhase(p);
+    pomo.reset(); // waits for Start
+    return;
+  }
+
+  // Chain sessions from the moment the last one really ended, so the
+  // schedule stays right even if the phone was locked for a while.
+  let end = p.endAt;
+  nextPhase(p);
+  while (end + DURATION[p.phase] <= Date.now()) {
+    end += DURATION[p.phase];
+    nextPhase(p);
+  }
+  p.endAt = end + DURATION[p.phase];
+  p.running = true;
+  update();
 }
 
 // ---------- Timer ----------
@@ -300,6 +325,18 @@ function toggleTick() {
 }
 showTickState();
 
+const autoBtn = document.querySelector('[data-act="auto"]');
+function showAutoState() {
+  autoBtn.textContent = autoStart ? "Auto on" : "Auto off";
+  autoBtn.classList.toggle("off", !autoStart);
+}
+function toggleAuto() {
+  autoStart = !autoStart;
+  try { localStorage.setItem("flipclock.autostart", autoStart ? "on" : "off"); } catch {}
+  showAutoState();
+}
+showAutoState();
+
 // ---------- Rendering ----------
 
 const runBtn = document.querySelector('[data-act="run"]');
@@ -404,6 +441,7 @@ document.getElementById("controls").addEventListener("click", (e) => {
   unlockAudio();
   if (btn.dataset.view) setView(btn.dataset.view);
   else if (btn.dataset.act === "sound") toggleTick();
+  else if (btn.dataset.act === "auto") toggleAuto();
   else current()?.[btn.dataset.act]?.();
 });
 
@@ -418,6 +456,7 @@ document.addEventListener("keydown", (e) => {
 
   if (views[key]) setView(views[key]);
   else if (key === "m") toggleTick();
+  else if (key === "a" && state.view === "pomo") toggleAuto();
   else if (acts[key] && current()?.[acts[key]]) current()[acts[key]]();
   else if (state.view === "timer" && (key === "arrowup" || key === "arrowdown"))
     timer.nudge("m", key === "arrowup" ? 1 : -1);
