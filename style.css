@@ -1,0 +1,251 @@
+:root {
+  --bg: #000;
+  --card: #1a1a1a;
+  --digit: #fff;
+  --label: #cfcfcf;
+
+  /* One size drives everything so it scales with the window */
+  --size: min(26vw, 58vh);
+  --gap: calc(var(--size) * 0.14);
+  --radius: calc(var(--size) * 0.12);
+  --flip: 300ms;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+body {
+  display: grid;
+  place-items: center;
+  color: var(--label);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation; /* no double-tap zoom on phones */
+  cursor: default;
+}
+
+.clock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--size) * 0.15);
+}
+
+.date,
+.motto {
+  font-size: max(14px, calc(var(--size) * 0.105));
+  letter-spacing: 0.02em;
+}
+
+.date { white-space: pre; }
+
+.motto {
+  text-align: center;
+  max-width: calc(var(--size) * 3 + var(--gap) * 2);
+  min-height: 1.2em;
+  transition: opacity 600ms ease;
+}
+
+.motto.hidden { opacity: 0; }
+
+.cards {
+  display: flex;
+  gap: var(--gap);
+}
+
+/* ---------- Card ---------- */
+
+.card {
+  position: relative;
+  width: var(--size);
+  height: var(--size);
+  perspective: calc(var(--size) * 4);
+  font-family: "Barlow Condensed", "DIN Condensed", "Oswald", "Arial Narrow", sans-serif;
+  font-weight: 600;
+  font-size: calc(var(--size) * 0.78);
+  color: var(--digit);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The split line across the middle */
+.card::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: max(2px, calc(var(--size) * 0.008));
+  transform: translateY(-50%);
+  background: var(--bg);
+  z-index: 10;
+}
+
+.half {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 50%;
+  overflow: hidden;
+  background: var(--card);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.half span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 200%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.top    { top: 0;    border-radius: var(--radius) var(--radius) 0 0; transform-origin: 50% 100%; }
+.bottom { bottom: 0; border-radius: 0 0 var(--radius) var(--radius); transform-origin: 50% 0; }
+.top span    { top: 0; }
+.bottom span { bottom: 0; }
+
+/* ---------- Flip animation ---------- */
+
+.flap { z-index: 5; }
+
+.flap.top {
+  animation: flip-top var(--flip) ease-in forwards;
+}
+
+.flap.bottom {
+  transform: rotateX(90deg);
+  animation: flip-bottom var(--flip) ease-out var(--flip) forwards;
+}
+
+@keyframes flip-top {
+  from { transform: rotateX(0deg); filter: brightness(1); }
+  to   { transform: rotateX(-90deg); filter: brightness(0.6); }
+}
+
+@keyframes flip-bottom {
+  from { transform: rotateX(90deg); filter: brightness(0.6); }
+  to   { transform: rotateX(0deg); filter: brightness(1); }
+}
+
+/* ---------- Pomodoro / Timer controls ---------- */
+
+body[data-view="pomo"] #hours { display: none; }
+
+body.idle { cursor: none; }
+
+.controls {
+  position: fixed;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  opacity: 0;
+  pointer-events: none; /* hidden buttons can't be tapped by accident */
+  transition: opacity 400ms ease;
+}
+
+.controls .row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.controls .row:empty { display: none; }
+
+.controls .tabs button {
+  border-color: transparent;
+  color: #6f6f6f;
+}
+
+.controls .tabs button:hover { color: #bbb; }
+.controls .tabs button.active { color: #fff; }
+
+.for-pomo,
+.for-timer { display: none; }
+
+body[data-view="pomo"] .for-pomo,
+body[data-view="timer"] .for-timer { display: inline-block; }
+
+/* Timer: scroll or drag a card to set it */
+body.timer-set .card {
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+body.done .card { animation: done-pulse 1s ease-in-out infinite; }
+
+@keyframes done-pulse {
+  50% { opacity: 0.35; }
+}
+
+.controls.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.controls button {
+  background: none;
+  border: 1px solid #333;
+  border-radius: 999px;
+  color: var(--label);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: border-color 200ms, color 200ms;
+}
+
+.controls button:hover,
+.controls button:focus-visible {
+  border-color: #777;
+  color: #fff;
+  outline: none;
+}
+
+/* ---------- Phones ---------- */
+
+/* Portrait: stack the cards so they can be big */
+@media (max-aspect-ratio: 3/4) {
+  :root { --size: min(50vw, 18vh); }
+  @supports (height: 1dvh) {
+    :root { --size: min(50vw, 18dvh); }
+  }
+  .cards { flex-direction: column; }
+}
+
+/* Landscape on a short screen: one row of controls, slightly smaller cards */
+@media (max-height: 500px) and (min-aspect-ratio: 4/3) {
+  :root { --size: min(26vw, 44vh); }
+  @supports (height: 1dvh) {
+    :root { --size: min(26vw, 44dvh); }
+  }
+  .controls {
+    flex-direction: row;
+    justify-content: center;
+    flex-wrap: wrap;
+    bottom: max(10px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --flip: 0ms; }
+}

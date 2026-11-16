@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <title>Flip Clock</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="clock" title="Double-click for fullscreen">
+    <div class="date" id="date">&nbsp;</div>
+
+    <div class="cards">
+      <div class="card" id="hours"></div>
+      <div class="card" id="minutes"></div>
+      <div class="card" id="seconds"></div>
+    </div>
+
+    <div class="motto" id="motto">LESS IS MORE</div>
+  </main>
+
+  <nav class="controls" id="controls" aria-label="Controls">
+    <div class="row tabs">
+      <button type="button" data-view="clock" title="Clock (C)">Clock</button>
+      <button type="button" data-view="pomo" title="Pomodoro (P)">Pomodoro</button>
+      <button type="button" data-view="timer" title="Timer (T)">Timer</button>
+    </div>
+    <div class="row actions">
+      <button type="button" data-act="run" class="for-pomo for-timer" title="Start / pause (Space)">Start</button>
+      <button type="button" data-act="reset" class="for-pomo for-timer" title="Reset (R)">Reset</button>
+      <button type="button" data-act="skip" class="for-pomo" title="Skip to next session (S)">Skip</button>
+    </div>
+  </nav>
+
+  <script src="script.js"></script>
+</body>
+</html>
