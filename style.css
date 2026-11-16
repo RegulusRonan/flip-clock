@@ -258,12 +258,26 @@ body.done .card { animation: done-pulse 1s ease-in-out infinite; }
   }
 }
 
-/* Landscape on a short screen: one row of controls, slightly smaller cards */
+/* Landscape phones: cards as big as the height allows, tighter spacing,
+   one row of controls. The clock is ~1.12 cards tall plus ~44px of text;
+   125px covers that text, the controls and some breathing room. */
 @media (max-height: 500px) and (min-aspect-ratio: 4/3) {
-  :root { --size: min(26vw, 44vh); }
-  @supports (height: 1dvh) {
-    :root { --size: min(26vw, 44dvh); }
+  :root {
+    --side: calc(40px + env(safe-area-inset-left) + env(safe-area-inset-right)); /* notch */
+    --size: min(calc((100vw - var(--side)) / 3.3), calc((100vh - 135px) / 1.12));
+    --gap: calc(var(--size) * 0.1);
   }
+  @supports (height: 1dvh) {
+    :root { --size: min(calc((100vw - var(--side)) / 3.3), calc((100dvh - 135px) / 1.12)); }
+  }
+  body {
+    padding-bottom: 50px; /* center the clock above the controls */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  .clock { gap: calc(var(--size) * 0.06); }
+  .date,
+  .motto { font-size: clamp(14px, calc(var(--size) * 0.085), 18px); }
   .controls {
     flex-direction: row;
     justify-content: center;
