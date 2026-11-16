@@ -111,8 +111,10 @@ body {
   justify-content: center;
   line-height: 1;
   /* Stretch the digits a little taller so they fill the card like a
-     DIN Condensed flip clock. Scales around the card's middle line. */
-  transform: scaleY(var(--stretch, 1.18));
+     DIN Condensed flip clock. Scales around the card's middle line.
+     The font draws its digits 0.05em below the middle of the line,
+     so lift them by that much to center them in the card. */
+  transform: scaleY(var(--stretch, 1.18)) translateY(-0.05em);
 }
 
 .top    { top: 0;    border-radius: var(--radius) var(--radius) 0 0; transform-origin: 50% 100%; }
