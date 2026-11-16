@@ -716,6 +716,32 @@ setInterval(() => {
   }, FADE_MS);
 }, QUOTE_SECONDS * 1000);
 
+// ---------- Offline support ----------
+// sw.js keeps a copy of the app on the device. When it finds that a newer
+// version was published, it tells us here. If sound hasn't been switched on
+// yet (usually right after opening), reload into the new version at once;
+// otherwise wait until the app is next reopened, so a running session isn't
+// interrupted and you don't need to tap again for sound.
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+  navigator.serviceWorker.startMessages?.(); // receive messages sent while loading
+
+  let updateWaiting = false;
+  let reloadTimer = null;
+  navigator.serviceWorker.addEventListener("message", (e) => {
+    if (e.data?.type !== "updated") return;
+    updateWaiting = true;
+    if (audio && audio.state === "running") return; // apply on next reopen
+    // Several files can change at once: wait until they've all arrived
+    clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(() => location.reload(), 1500);
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (updateWaiting && document.visibilityState === "visible") location.reload();
+  });
+}
+
 // Double-click anywhere (except the buttons) to toggle fullscreen
 document.addEventListener("dblclick", (e) => {
   if (e.target.closest("button")) return;

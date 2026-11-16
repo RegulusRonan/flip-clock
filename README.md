@@ -28,4 +28,4 @@ npx serve .
 
 ## Deploy
 
-Static site: import the repo on Vercel with the default settings (no framework, no build command).
+Static site: import the repo on Vercel with the default settings (no framework, no build command). `sw.js` makes it work offline and updates it automatically on the next open after a deploy.
