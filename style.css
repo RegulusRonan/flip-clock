@@ -11,12 +11,24 @@
   --flip: 300ms;
 }
 
+@supports (height: 1dvh) {
+  :root { --size: min(26vw, calc((100dvh - 106px) * 0.62)); }
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
   height: 100%;
   background: var(--bg);
   overflow: hidden;
+}
+
+/* Match the page to the *visible* screen (without the browser's address
+   bar), the same height the card sizes use. Otherwise phones center
+   everything in a taller box and it all sits too low. */
+body {
+  height: 100vh;
+  height: 100dvh;
 }
 
 body {
