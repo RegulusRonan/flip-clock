@@ -223,13 +223,39 @@ body.done .card { animation: done-pulse 1s ease-in-out infinite; }
 
 /* ---------- Phones ---------- */
 
-/* Portrait: stack the cards so they can be big */
+/* Portrait: stack the cards and make them fill the screen.
+   The clock is ~3.84 cards tall with the date and quote; 176px is the
+   controls plus some breathing room. */
 @media (max-aspect-ratio: 3/4) {
-  :root { --size: min(50vw, 18vh); }
+  :root { --size: min(56vw, calc((100vh - 176px) / 3.84)); }
   @supports (height: 1dvh) {
-    :root { --size: min(50vw, 18dvh); }
+    :root { --size: min(56vw, calc((100dvh - 176px) / 3.84)); }
   }
-  .cards { flex-direction: column; }
+
+  /* Center the clock in the space above the controls */
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: 106px; /* height of the controls */
+  }
+
+  /* Always reserve room for three cards so switching views never jumps */
+  .cards {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: calc(var(--size) * 3 + var(--gap) * 2);
+  }
+
+  /* Pomodoro only has two cards, so let them be bigger in the same space */
+  body[data-view="pomo"] .card {
+    --size: min(56vw, calc((100vh - 176px) / 3.84 * 1.5));
+    --radius: calc(var(--size) * 0.12);
+  }
+  @supports (height: 1dvh) {
+    body[data-view="pomo"] .card {
+      --size: min(56vw, calc((100dvh - 176px) / 3.84 * 1.5));
+    }
+  }
 }
 
 /* Landscape on a short screen: one row of controls, slightly smaller cards */
