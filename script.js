@@ -300,6 +300,9 @@ function timerEnd() {
   t.running = false;
   t.left = 0;
   t.done = true;
+  // Show "Time's up" even if you were on another screen; with the phone on
+  // silent, the screen is the only way to notice
+  state.view = "timer";
   chime();
   setTimeout(chime, 1100);
   update();
@@ -573,7 +576,11 @@ const current = () => (state.view === "timer" ? timer : state.view === "pomo" ? 
 document.getElementById("controls").addEventListener("click", (e) => {
   const btn = e.target.closest("button");
   if (!btn) return;
-  if (lastPointer !== "mouse") btn.blur(); // don't leave a tapped button highlighted
+  // After a click or tap, don't leave the button focused: a focused button
+  // would swallow the Space key (so Space wouldn't start/pause) and phones
+  // would keep it highlighted. Keyboard "clicks" (Tab + Enter) have
+  // e.detail === 0 and keep their focus.
+  if (e.detail > 0) btn.blur();
   unlockAudio();
   if (btn.dataset.view) setView(btn.dataset.view);
   else if (btn.dataset.act === "sound") toggleTick();
@@ -587,6 +594,12 @@ document.addEventListener("keydown", (e) => {
   if (e.target.closest("button") && (e.key === " " || e.key === "Enter")) return;
 
   const key = e.key.toLowerCase();
+  // Holding a key down repeats it; only the arrow keys should repeat
+  // (holding Space would otherwise flip start/pause on and off)
+  if (e.repeat && key !== "arrowup" && key !== "arrowdown") {
+    if (key === " ") e.preventDefault();
+    return;
+  }
   const views = { c: "clock", p: "pomo", t: "timer" };
   const acts = { " ": "run", r: "reset", s: "skip" };
 
