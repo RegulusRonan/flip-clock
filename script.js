@@ -251,10 +251,10 @@ function playTick() {
   src.buffer = tickBuffer;
   const filter = audio.createBiquadFilter();
   filter.type = "bandpass";
-  filter.frequency.value = 2400;
-  filter.Q.value = 1.2;
+  filter.frequency.value = 1800; // lower = gentler, less "clicky"
+  filter.Q.value = 0.9;
   const gain = audio.createGain();
-  gain.gain.value = 0.18; // soft
+  gain.gain.value = 0.06; // very soft (was 0.18)
   src.connect(filter).connect(gain).connect(audio.destination);
   src.start();
 }
