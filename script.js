@@ -431,7 +431,7 @@ function wake() {
     if (lastPointer === "mouse" && controlsEl.matches(":hover")) return wake();
     controlsEl.classList.remove("show");
     document.body.classList.add("idle");
-  }, 3000);
+  }, 1000); // hide the controls 1 second after the last activity
 }
 document.addEventListener("mousemove", wake);
 ["pointerdown", "keydown"].forEach((ev) =>
