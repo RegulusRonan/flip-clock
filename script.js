@@ -392,6 +392,39 @@ const hhmmss = (secs) => `${pad(Math.floor(secs / 3600))}:${mmss(secs % 3600)}`;
 let lastTickValue = null;
 let lastQuarter = null;
 
+// ---------- OLED burn-in protection ----------
+
+const clockEl = document.querySelector(".clock");
+
+// Pixel shift: once a minute the whole clock moves to a new spot a few
+// pixels away (a slow circle whose size also changes), so no pixel shows the
+// same thing all day. Same idea as Apple's StandBy / always-on display.
+const SHIFT_MAX_PX = 6;
+let lastShiftMinute = null;
+function pixelShift(nowMs) {
+  const minute = Math.floor(nowMs / 60000);
+  if (minute === lastShiftMinute) return;
+  lastShiftMinute = minute;
+  const angle = minute * (2 * Math.PI / 13);            // 13 spots around the circle
+  const radius = SHIFT_MAX_PX * (0.5 + (minute % 4) / 6); // 3 to 6 px
+  clockEl.style.setProperty("--shift-x", `${Math.round(Math.cos(angle) * radius)}px`);
+  clockEl.style.setProperty("--shift-y", `${Math.round(Math.sin(angle) * radius)}px`);
+}
+
+// Night dim: between these hours the clock dims (see body.night in
+// style.css). A tap brightens it for a few seconds.
+const NIGHT_START = 22; // 22:00
+const NIGHT_END = 7;    // 07:00
+const BRIGHTEN_MS = 10000;
+let brightUntil = 0;
+const isNight = (hour) =>
+  NIGHT_START > NIGHT_END ? hour >= NIGHT_START || hour < NIGHT_END
+                          : hour >= NIGHT_START && hour < NIGHT_END;
+function brightenForAWhile() {
+  brightUntil = Date.now() + BRIGHTEN_MS;
+  document.body.classList.remove("night");
+}
+
 function render() {
   // Catch ends we may have missed (e.g. the laptop was asleep)
   if (state.pomo.running && remaining(state.pomo) <= 0) return pomoEnd();
@@ -401,6 +434,8 @@ function render() {
   const now = new Date();
 
   if (document.body.dataset.view !== view) document.body.dataset.view = view;
+  pixelShift(now.getTime());
+  document.body.classList.toggle("night", isNight(now.getHours()) && now.getTime() > brightUntil);
   document.body.classList.toggle("done", view === "timer" && t.done);
   document.body.classList.toggle("timer-set", view === "timer" && !t.running);
   tabBtns.forEach((b) => b.classList.toggle("active", b.dataset.view === view));
@@ -657,7 +692,7 @@ document.addEventListener("mousemove", () => {
   wake();
 });
 ["pointerdown", "keydown"].forEach((ev) =>
-  document.addEventListener(ev, () => { unlockAudio(); keepAwake(); wake(); dismissDone(); })
+  document.addEventListener(ev, () => { unlockAudio(); keepAwake(); wake(); dismissDone(); brightenForAWhile(); })
 );
 // The end of a tap is what phones count as permission for sound (and
 // sometimes for keeping the screen on), so try both again there.
