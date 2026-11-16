@@ -75,6 +75,10 @@ body {
 /* Night dim: 40% brightness. Dimmer pixels on an OLED wear much slower. */
 body.night .clock { opacity: 0.4; }
 
+/* Set for a moment when the app opens or comes back, so it doesn't slide
+   in or fade down (see renderWithoutTransitions in script.js) */
+.clock.settling { transition: none; }
+
 .date,
 .motto {
   letter-spacing: 0.02em;

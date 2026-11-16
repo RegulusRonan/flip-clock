@@ -425,6 +425,16 @@ function brightenForAWhile() {
   document.body.classList.remove("night");
 }
 
+// When the app opens (or comes back after the phone was locked), show the
+// clock straight away at its current spot and brightness. Without this it
+// would slide in from the center and, at night, start bright and fade down.
+function renderWithoutTransitions() {
+  clockEl.classList.add("settling");
+  render();
+  clockEl.getBoundingClientRect(); // apply the new position/brightness now
+  clockEl.classList.remove("settling");
+}
+
 function render() {
   // Catch ends we may have missed (e.g. the laptop was asleep)
   if (state.pomo.running && remaining(state.pomo) <= 0) return pomoEnd();
@@ -505,6 +515,7 @@ function tick() {
 
 arm("pomo", pomoEnd);
 arm("timer", timerEnd);
+if (!document.hidden) renderWithoutTransitions(); // first paint: no slide/fade
 tick();
 
 // ---------- Controls ----------
@@ -648,7 +659,7 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     keepAwake();
     keepAwakeWithVideo();
-    render(); // catch up right away after the phone was locked
+    renderWithoutTransitions(); // catch up right away after the phone was locked
   }
 });
 keepAwake();
