@@ -268,6 +268,26 @@ function playTick() {
   src.start();
 }
 
+// Every quarter hour (:00, :15, :30, :45) a soft bell plays instead of the
+// tick. Follows the Tick on/off button too.
+function playQuarter() {
+  if (!tickOn || !audio || audio.state !== "running" || document.hidden) return;
+  const t = audio.currentTime;
+  // A bell-like tone: a main note plus two quieter overtones, fading out
+  [[1318.5, 1], [2637, 0.35], [3955.5, 0.12]].forEach(([freq, level]) => {
+    const osc = audio.createOscillator();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    const gain = audio.createGain();
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.06 * level, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+    osc.connect(gain).connect(audio.destination);
+    osc.start(t);
+    osc.stop(t + 1.7);
+  });
+}
+
 const tickBtn = document.querySelector('[data-act="sound"]');
 function showTickState() {
   tickBtn.textContent = tickOn ? "Tick on" : "Tick off";
@@ -290,6 +310,7 @@ const mmss = (secs) => `${pad(Math.floor(secs / 60))}:${pad(secs % 60)}`;
 const hhmmss = (secs) => `${pad(Math.floor(secs / 3600))}:${mmss(secs % 3600)}`;
 
 let lastTickValue = null;
+let lastQuarter = null;
 
 function render() {
   // Catch ends we may have missed (e.g. the laptop was asleep)
@@ -334,9 +355,20 @@ function render() {
       `${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}  ${DAYS[now.getDay()]}`;
   }
 
+  // Quarter hours of the real time get the bell (in every view)
+  let rang = false;
+  if (now.getSeconds() === 0 && now.getMinutes() % 15 === 0) {
+    const key = `${now.getHours()}:${now.getMinutes()}`;
+    if (key !== lastQuarter) {
+      lastQuarter = key;
+      playQuarter();
+      rang = true;
+    }
+  }
+
   // Tick whenever the seconds card flips (paused timers stay silent)
   if (cards.s.value !== lastTickValue) {
-    if (lastTickValue !== null) playTick();
+    if (lastTickValue !== null && !rang) playTick();
     lastTickValue = cards.s.value;
   }
 
