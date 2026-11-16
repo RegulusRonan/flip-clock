@@ -14,6 +14,7 @@ Move the mouse (or tap) to show the controls. Double-click for fullscreen.
 | Space | Start / pause |
 | R | Reset |
 | S | Skip (pomodoro) |
+| M | Tick sound on / off |
 | ↑ / ↓ | Timer minutes |
 
 ## Run locally

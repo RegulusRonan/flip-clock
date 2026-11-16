@@ -233,6 +233,44 @@ function chime() {
   });
 }
 
+// Soft "tick" each second, like a mechanical flip clock: a very short burst
+// of filtered noise. Can be switched off with the Tick button (or M key).
+let tickOn = true;
+try { tickOn = localStorage.getItem("flipclock.tick") !== "off"; } catch {}
+
+let tickBuffer = null;
+function playTick() {
+  if (!tickOn || !audio || audio.state !== "running" || document.hidden) return;
+  if (!tickBuffer) {
+    const len = Math.floor(audio.sampleRate * 0.03); // 30ms
+    tickBuffer = audio.createBuffer(1, len, audio.sampleRate);
+    const data = tickBuffer.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 4;
+  }
+  const src = audio.createBufferSource();
+  src.buffer = tickBuffer;
+  const filter = audio.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.value = 2400;
+  filter.Q.value = 1.2;
+  const gain = audio.createGain();
+  gain.gain.value = 0.18; // soft
+  src.connect(filter).connect(gain).connect(audio.destination);
+  src.start();
+}
+
+const tickBtn = document.querySelector('[data-act="sound"]');
+function showTickState() {
+  tickBtn.textContent = tickOn ? "Tick on" : "Tick off";
+  tickBtn.classList.toggle("off", !tickOn);
+}
+function toggleTick() {
+  tickOn = !tickOn;
+  try { localStorage.setItem("flipclock.tick", tickOn ? "on" : "off"); } catch {}
+  showTickState();
+}
+showTickState();
+
 // ---------- Rendering ----------
 
 const runBtn = document.querySelector('[data-act="run"]');
@@ -241,6 +279,8 @@ const tabBtns = document.querySelectorAll("[data-view]");
 const secondsLeft = (c) => Math.ceil(remaining(c) / 1000);
 const mmss = (secs) => `${pad(Math.floor(secs / 60))}:${pad(secs % 60)}`;
 const hhmmss = (secs) => `${pad(Math.floor(secs / 3600))}:${mmss(secs % 3600)}`;
+
+let lastTickValue = null;
 
 function render() {
   // Catch ends we may have missed (e.g. the laptop was asleep)
@@ -285,6 +325,12 @@ function render() {
       `${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}  ${DAYS[now.getDay()]}`;
   }
 
+  // Tick whenever the seconds card flips (paused timers stay silent)
+  if (cards.s.value !== lastTickValue) {
+    if (lastTickValue !== null) playTick();
+    lastTickValue = cards.s.value;
+  }
+
   // Tab title shows whatever is counting down (current view first)
   const pomoTitle = p.running && `${mmss(secondsLeft(p))} · ${PHASE_LABEL[p.phase]}`;
   const timerTitle = t.running && `${hhmmss(secondsLeft(t))} · Timer`;
@@ -316,6 +362,7 @@ document.getElementById("controls").addEventListener("click", (e) => {
   if (lastPointer !== "mouse") btn.blur(); // don't leave a tapped button highlighted
   unlockAudio();
   if (btn.dataset.view) setView(btn.dataset.view);
+  else if (btn.dataset.act === "sound") toggleTick();
   else current()?.[btn.dataset.act]?.();
 });
 
@@ -329,6 +376,7 @@ document.addEventListener("keydown", (e) => {
   const acts = { " ": "run", r: "reset", s: "skip" };
 
   if (views[key]) setView(views[key]);
+  else if (key === "m") toggleTick();
   else if (acts[key] && current()?.[acts[key]]) current()[acts[key]]();
   else if (state.view === "timer" && (key === "arrowup" || key === "arrowdown"))
     timer.nudge("m", key === "arrowup" ? 1 : -1);
@@ -388,13 +436,26 @@ const canSetTimer = () => state.view === "timer" && !state.timer.running;
 
 // ---------- Keep the screen on (phones/tablets) ----------
 
+// Holds a screen wake lock while the clock is on screen, so the phone never
+// dims or auto-locks. Phones drop the lock when the app is hidden (and
+// sometimes on their own), so it's requested again whenever it's lost.
 let wakeLock = null;
+let wakeLockPending = false;
 async function keepAwake() {
-  if (wakeLock || !("wakeLock" in navigator) || document.visibilityState !== "visible") return;
+  if (wakeLock || wakeLockPending || !("wakeLock" in navigator)) return;
+  if (document.visibilityState !== "visible") return;
+  wakeLockPending = true;
   try {
     wakeLock = await navigator.wakeLock.request("screen");
-    wakeLock.addEventListener("release", () => { wakeLock = null; });
-  } catch {}
+    wakeLock.addEventListener("release", () => {
+      wakeLock = null;
+      if (document.visibilityState === "visible") setTimeout(keepAwake, 1000);
+    });
+  } catch {
+    // Some phones only allow it after a tap; the next tap tries again
+  } finally {
+    wakeLockPending = false;
+  }
 }
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
@@ -403,6 +464,7 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 keepAwake();
+setInterval(keepAwake, 15000); // safety net: re-check every 15 seconds
 
 // Any click or key stops the "time's up" blinking
 function dismissDone() {

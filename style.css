@@ -209,6 +209,8 @@ body.idle { cursor: none; }
 }
 .controls .tabs button.active { color: #fff; }
 
+.controls button.off { color: #6f6f6f; } /* Tick off */
+
 .for-pomo,
 .for-timer { display: none; }
 
@@ -332,6 +334,13 @@ body.done .card { animation: done-pulse 1s ease-in-out infinite; }
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
     bottom: max(10px, env(safe-area-inset-bottom));
+    gap: 6px;
+  }
+  .controls .row { gap: 6px; }
+  .controls button {
+    padding: 7px 11px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
   }
 }
 
