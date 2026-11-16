@@ -3,6 +3,46 @@ const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", 
 
 const pad = (n) => String(n).padStart(2, "0");
 
+// ---------- Screen measurements (see the note in style.css) ----------
+// The layout uses the screen height and the notch / status bar / home bar
+// spacing measured here, instead of trusting the phone's first report at
+// launch. Measured now, again a few times right after launch, whenever the
+// screen changes (rotation, returning to the app), and once a second with
+// the clock (because phones don't always send a "screen changed" event).
+// It only touches the layout when a value actually changed.
+const insetProbe = document.createElement("div");
+insetProbe.style.cssText =
+  "position:fixed;visibility:hidden;pointer-events:none;" +
+  "padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)";
+document.body.append(insetProbe);
+
+const measured = {};
+function measureScreen() {
+  const s = getComputedStyle(insetProbe);
+  const values = {
+    "--app-h": `${window.innerHeight}px`,
+    "--safe-top": s.paddingTop,
+    "--safe-right": s.paddingRight,
+    "--safe-bottom": s.paddingBottom,
+    "--safe-left": s.paddingLeft,
+  };
+  for (const [name, value] of Object.entries(values)) {
+    if (measured[name] !== value) {
+      measured[name] = value;
+      document.documentElement.style.setProperty(name, value);
+    }
+  }
+}
+measureScreen();
+[100, 500, 1500, 3000].forEach((ms) => setTimeout(measureScreen, ms));
+addEventListener("resize", measureScreen);
+addEventListener("orientationchange", () => setTimeout(measureScreen, 300));
+addEventListener("pageshow", measureScreen);
+visualViewport?.addEventListener("resize", measureScreen);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) { measureScreen(); setTimeout(measureScreen, 500); }
+});
+
 // Only touch the page when something actually changed
 function setText(el, value) {
   if (el.textContent !== value) el.textContent = value;
@@ -508,7 +548,10 @@ function tick() {
   // Nobody can see the cards while the app is in the background, so skip
   // the work; it catches up the moment it's visible again (see the
   // visibilitychange handler). Pomodoro/timer endings have their own timers.
-  if (!document.hidden) render();
+  if (!document.hidden) {
+    measureScreen(); // cheap; catches screen changes phones didn't report
+    render();
+  }
   // Re-align to the start of the next second so ticks don't drift
   setTimeout(tick, 1000 - new Date().getMilliseconds());
 }

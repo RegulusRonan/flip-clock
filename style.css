@@ -15,13 +15,9 @@
   --label: #cfcfcf;
 
   /* One size drives everything so it scales with the window */
-  --size: min(26vw, calc((100vh - 106px) * 0.62));
+  --size: min(26vw, calc((var(--app-h, 100vh) - 106px) * 0.62));
   --gap: calc(var(--size) * 0.14);
   --radius: calc(var(--size) * 0.12);
-}
-
-@supports (height: 1dvh) {
-  :root { --size: min(26vw, calc((100dvh - 106px) * 0.62)); }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -32,12 +28,14 @@ html, body {
   overflow: hidden;
 }
 
-/* Match the page to the *visible* screen (without the browser's address
-   bar), the same height the card sizes use. Otherwise phones center
-   everything in a taller box and it all sits too low. */
+/* Screen size and notch/status-bar/home-bar spacing come from script.js
+   (--app-h, --safe-top/right/bottom/left), measured from the device itself
+   and re-measured shortly after launch. iPhone home-screen apps can report
+   wrong values for a moment at launch and not lay the page out again, which
+   made the whole clock open too high or too low. The 100vh / env() values
+   are only fallbacks. */
 body {
-  height: 100vh;
-  height: 100dvh;
+  height: var(--app-h, 100vh);
 }
 
 body {
@@ -45,7 +43,7 @@ body {
   place-items: center;
   /* room for the controls at the bottom (82px tall, sitting 24px up or
      above the iPhone home bar, whichever is higher) */
-  padding-bottom: calc(82px + max(24px, env(safe-area-inset-bottom)));
+  padding-bottom: calc(82px + max(24px, var(--safe-bottom, env(safe-area-inset-bottom))));
   color: var(--label);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -192,7 +190,7 @@ body.idle { cursor: none; }
 .controls {
   position: fixed;
   left: 50%;
-  bottom: max(24px, env(safe-area-inset-bottom));
+  bottom: max(24px, var(--safe-bottom, env(safe-area-inset-bottom)));
   transform: translateX(-50%);
   width: calc(100vw - 32px);
   display: flex;
@@ -281,13 +279,10 @@ body.done .card { animation: done-pulse 1s ease-in-out infinite; }
    controls plus some breathing room, on top of the status bar / home bar
    space iPhones reserve (safe-area insets). */
 @media (max-aspect-ratio: 3/4) {
-  :root { --size: min(56vw, calc((100vh - 176px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 3.84)); }
-  @supports (height: 1dvh) {
-    :root { --size: min(56vw, calc((100dvh - 176px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 3.84)); }
-  }
+  :root { --size: min(56vw, calc((var(--app-h, 100vh) - 176px - var(--safe-top, env(safe-area-inset-top)) - var(--safe-bottom, env(safe-area-inset-bottom))) / 3.84)); }
 
   /* Center the clock in the space above the controls */
-  body { padding-top: env(safe-area-inset-top); }
+  body { padding-top: var(--safe-top, env(safe-area-inset-top)); }
 
   /* Always reserve room for three cards so switching views never jumps */
   .cards {
@@ -299,13 +294,8 @@ body.done .card { animation: done-pulse 1s ease-in-out infinite; }
 
   /* Pomodoro only has two cards, so let them be bigger in the same space */
   body[data-view="pomo"] .card {
-    --size: min(56vw, calc((100vh - 176px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 3.84 * 1.5));
+    --size: min(56vw, calc((var(--app-h, 100vh) - 176px - var(--safe-top, env(safe-area-inset-top)) - var(--safe-bottom, env(safe-area-inset-bottom))) / 3.84 * 1.5));
     --radius: calc(var(--size) * 0.12);
-  }
-  @supports (height: 1dvh) {
-    body[data-view="pomo"] .card {
-      --size: min(56vw, calc((100dvh - 176px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 3.84 * 1.5));
-    }
   }
 }
 
@@ -315,22 +305,19 @@ body.done .card { animation: done-pulse 1s ease-in-out infinite; }
    the quote and a small margin. */
 @media (max-height: 500px) and (min-aspect-ratio: 4/3) {
   :root {
-    --side: calc(24px + env(safe-area-inset-left) + env(safe-area-inset-right)); /* notch */
+    --side: calc(24px + var(--safe-left, env(safe-area-inset-left)) + var(--safe-right, env(safe-area-inset-right))); /* notch */
     /* 3 cards + 2 gaps of 0.1 across; cards are 1.1x taller than wide */
-    --card-w: min(calc((100vw - var(--side)) / 3.2), calc((100vh - 100px) / 1.1));
+    --card-w: min(calc((100vw - var(--side)) / 3.2), calc((var(--app-h, 100vh) - 100px) / 1.1));
     --card-h: calc(var(--card-w) * 1.1);
     --digit-size: calc(var(--card-w) * 0.88);
     --stretch: 1.3; /* taller cards, so stretch the digits a bit more */
     --size: var(--card-w);
     --gap: calc(var(--card-w) * 0.1);
   }
-  @supports (height: 1dvh) {
-    :root { --card-w: min(calc((100vw - var(--side)) / 3.2), calc((100dvh - 100px) / 1.1)); }
-  }
   body {
     padding-bottom: 0; /* controls float over the bottom here */
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
+    padding-left: var(--safe-left, env(safe-area-inset-left));
+    padding-right: var(--safe-right, env(safe-area-inset-right));
   }
   .date { font-size: clamp(17px, calc(var(--size) * 0.1), 22px); }
   .motto { font-size: clamp(14px, calc(var(--size) * 0.085), 18px); }
@@ -343,7 +330,7 @@ body.done .card { animation: done-pulse 1s ease-in-out infinite; }
     padding: 6px 10px;
     border-radius: 999px;
     background: rgba(0, 0, 0, 0.75);
-    bottom: max(10px, env(safe-area-inset-bottom));
+    bottom: max(10px, var(--safe-bottom, env(safe-area-inset-bottom)));
     gap: 6px;
   }
   /* Blur what's behind the bar only while it's showing; an invisible blur
