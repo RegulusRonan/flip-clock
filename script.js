@@ -668,10 +668,6 @@ const canSetTimer = () => state.view === "timer" && !state.timer.running;
 // Holds a screen wake lock while the clock is on screen, so the phone never
 // dims or auto-locks. Phones drop the lock when the app is hidden (and
 // sometimes on their own), so it's requested again whenever it's lost.
-// What happened while trying to keep the screen on (shown by the status
-// readout: tap the date 5 times)
-const awakeDiag = { lockOk: 0, lockFail: "", lockReleased: 0, playOk: 0, playFail: "", streamOk: 0, streamFail: "", lastTap: 0 };
-
 let wakeLock = null;
 let wakeLockPending = false;
 async function keepAwake() {
@@ -680,17 +676,12 @@ async function keepAwake() {
   wakeLockPending = true;
   try {
     wakeLock = await navigator.wakeLock.request("screen");
-    awakeDiag.lockOk++;
-    updateAwakeHint();
     wakeLock.addEventListener("release", () => {
       wakeLock = null;
-      awakeDiag.lockReleased++;
-      updateAwakeHint();
       if (document.visibilityState === "visible") setTimeout(keepAwake, 1000);
     });
-  } catch (e) {
+  } catch {
     // Some phones only allow it after a tap; the next tap tries again
-    awakeDiag.lockFail = `${e.name}: ${e.message}`;
   } finally {
     wakeLockPending = false;
   }
@@ -716,126 +707,9 @@ function keepAwakeWithVideo() {
     awakeVideo.addEventListener("timeupdate", () => {
       if (awakeVideo.currentTime > 1) awakeVideo.currentTime = Math.random() * 0.5;
     });
-    // Put it on the page (1 pixel, practically invisible): iPhones may not
-    // keep the screen on for a video that isn't part of the page
-    awakeVideo.style.cssText =
-      "position:fixed;left:0;top:0;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:-1";
-    document.body.append(awakeVideo);
   }
-  if (awakeVideo.paused) {
-    awakeVideo.play()
-      .then(() => { awakeDiag.playOk++; updateAwakeHint(); })
-      .catch((e) => { awakeDiag.playFail = `${e.name}: ${e.message}`; });
-  }
+  if (awakeVideo.paused) awakeVideo.play().catch(() => {});
 }
-
-// Tap-free keep-awake for iPhones. The wake lock and the video above both
-// need a tap first, but a *muted* video may start on its own, and Safari
-// keeps the screen on while a live video stream plays (even muted). So we
-// play a tiny invisible live stream from a 2x2 canvas, redrawn once a second
-// so the stream stays live. It starts as soon as the app opens.
-let streamVideo = null;
-function keepAwakeWithStream() {
-  if (!IS_IOS || document.visibilityState !== "visible") return;
-  if (!streamVideo) {
-    const canvas = document.createElement("canvas");
-    if (!canvas.captureStream) { awakeDiag.streamFail = "not supported"; return; }
-    canvas.width = canvas.height = 2;
-    const ctx = canvas.getContext("2d");
-    let flip = false;
-    const draw = () => {
-      flip = !flip;
-      ctx.fillStyle = flip ? "#000" : "#010101";
-      ctx.fillRect(0, 0, 2, 2);
-    };
-    draw();
-    setInterval(() => { if (!document.hidden) draw(); }, 1000);
-
-    streamVideo = document.createElement("video");
-    streamVideo.muted = true;
-    streamVideo.setAttribute("muted", "");
-    streamVideo.setAttribute("playsinline", "");
-    streamVideo.setAttribute("autoplay", "");
-    streamVideo.srcObject = canvas.captureStream(1);
-    streamVideo.style.cssText =
-      "position:fixed;left:1px;top:0;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:-1";
-    document.body.append(streamVideo);
-  }
-  if (streamVideo.paused) {
-    streamVideo.play()
-      .then(() => { awakeDiag.streamOk++; updateAwakeHint(); })
-      .catch((e) => { awakeDiag.streamFail = `${e.name}: ${e.message}`; });
-  }
-}
-keepAwakeWithStream();
-document.addEventListener("visibilitychange", keepAwakeWithStream);
-setInterval(keepAwakeWithStream, 15000);
-["pointerup", "touchend", "click"].forEach((ev) =>
-  document.addEventListener(ev, keepAwakeWithStream, { passive: true }));
-
-// Phones only allow keep-awake after a tap (the first request, made when the
-// app opens, is refused). Show "Tap to keep screen on" until it's active.
-const awakeHint = document.getElementById("awakeHint");
-function updateAwakeHint() {
-  const supported = NEEDS_VIDEO || "wakeLock" in navigator;
-  const active = !!wakeLock || (awakeVideo && !awakeVideo.paused) ||
-    (streamVideo && !streamVideo.paused);
-  const show = supported && !active && !document.hidden;
-  if (awakeHint.hidden === show) awakeHint.hidden = !show;
-}
-updateAwakeHint();
-setInterval(updateAwakeHint, 1000);
-
-// ---------- Keep-awake status readout (tap the date 5 times) ----------
-// Temporary: shows on screen whether the phone accepted the keep-awake
-// requests, so a screenshot can tell what's going wrong on a real iPhone.
-let statusTaps = [];
-dateEl.addEventListener("pointerdown", () => {
-  const t = Date.now();
-  statusTaps = statusTaps.filter((x) => t - x < 2000).concat(t);
-  if (statusTaps.length < 5) return;
-  statusTaps = [];
-  try {
-    const on = localStorage.getItem("flipclock.status") === "1";
-    localStorage.setItem("flipclock.status", on ? "0" : "1");
-  } catch {}
-  showStatus();
-});
-document.addEventListener("pointerup", () => { awakeDiag.lastTap = Date.now(); }, true);
-
-let statusEl = null;
-function showStatus() {
-  let on = false;
-  try { on = localStorage.getItem("flipclock.status") === "1"; } catch {}
-  if (!on) { statusEl?.remove(); statusEl = null; return; }
-  if (!statusEl) {
-    statusEl = document.createElement("pre");
-    statusEl.style.cssText =
-      "position:fixed;left:8px;right:8px;top:30%;z-index:9999;margin:0;padding:8px;" +
-      "font:11px/1.4 monospace;color:#0f0;background:rgba(0,0,0,.85);border:1px solid #0f0;" +
-      "pointer-events:none;white-space:pre-wrap";
-    document.body.append(statusEl);
-  }
-  const v = awakeVideo;
-  const ago = (t) => (t ? `${Math.round((Date.now() - t) / 1000)}s ago` : "never");
-  statusEl.textContent = [
-    "KEEP-AWAKE STATUS (tap date 5x to hide)",
-    `standalone app: ${matchMedia("(display-mode: standalone)").matches || navigator.standalone === true}`,
-    `iPhone: ${IS_IOS}   uses video: ${NEEDS_VIDEO}`,
-    `wake lock: ${"wakeLock" in navigator ? (wakeLock ? "HELD" : "not held") : "not supported"}`,
-    `  granted ${awakeDiag.lockOk}x, released ${awakeDiag.lockReleased}x`,
-    `  last error: ${awakeDiag.lockFail || "none"}`,
-    `video: ${!v ? "not created" : v.paused ? "PAUSED" : "PLAYING"}` +
-      (v ? `  t=${v.currentTime.toFixed(2)}s ready=${v.readyState} err=${v.error?.code ?? "none"}` : ""),
-    `  started ${awakeDiag.playOk}x, last error: ${awakeDiag.playFail || "none"}`,
-    `stream (no tap needed): ${!streamVideo ? "not created" : streamVideo.paused ? "PAUSED" : "PLAYING"}`,
-    `  started ${awakeDiag.streamOk}x, last error: ${awakeDiag.streamFail || "none"}`,
-    `sound: ${audio ? audio.state : "not started"}`,
-    `last tap: ${ago(awakeDiag.lastTap)}`,
-  ].join("\n");
-}
-setInterval(() => { if (statusEl) showStatus(); }, 1000);
-showStatus();
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
