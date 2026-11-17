@@ -668,6 +668,10 @@ const canSetTimer = () => state.view === "timer" && !state.timer.running;
 // Holds a screen wake lock while the clock is on screen, so the phone never
 // dims or auto-locks. Phones drop the lock when the app is hidden (and
 // sometimes on their own), so it's requested again whenever it's lost.
+// What happened while trying to keep the screen on (shown by the status
+// readout: tap the date 5 times)
+const awakeDiag = { lockOk: 0, lockFail: "", lockReleased: 0, playOk: 0, playFail: "", lastTap: 0 };
+
 let wakeLock = null;
 let wakeLockPending = false;
 async function keepAwake() {
@@ -676,12 +680,15 @@ async function keepAwake() {
   wakeLockPending = true;
   try {
     wakeLock = await navigator.wakeLock.request("screen");
+    awakeDiag.lockOk++;
     wakeLock.addEventListener("release", () => {
       wakeLock = null;
+      awakeDiag.lockReleased++;
       if (document.visibilityState === "visible") setTimeout(keepAwake, 1000);
     });
-  } catch {
+  } catch (e) {
     // Some phones only allow it after a tap; the next tap tries again
+    awakeDiag.lockFail = `${e.name}: ${e.message}`;
   } finally {
     wakeLockPending = false;
   }
@@ -707,9 +714,67 @@ function keepAwakeWithVideo() {
     awakeVideo.addEventListener("timeupdate", () => {
       if (awakeVideo.currentTime > 1) awakeVideo.currentTime = Math.random() * 0.5;
     });
+    // Put it on the page (1 pixel, practically invisible): iPhones may not
+    // keep the screen on for a video that isn't part of the page
+    awakeVideo.style.cssText =
+      "position:fixed;left:0;top:0;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:-1";
+    document.body.append(awakeVideo);
   }
-  if (awakeVideo.paused) awakeVideo.play().catch(() => {});
+  if (awakeVideo.paused) {
+    awakeVideo.play()
+      .then(() => { awakeDiag.playOk++; })
+      .catch((e) => { awakeDiag.playFail = `${e.name}: ${e.message}`; });
+  }
 }
+
+// ---------- Keep-awake status readout (tap the date 5 times) ----------
+// Temporary: shows on screen whether the phone accepted the keep-awake
+// requests, so a screenshot can tell what's going wrong on a real iPhone.
+let statusTaps = [];
+dateEl.addEventListener("pointerdown", () => {
+  const t = Date.now();
+  statusTaps = statusTaps.filter((x) => t - x < 2000).concat(t);
+  if (statusTaps.length < 5) return;
+  statusTaps = [];
+  try {
+    const on = localStorage.getItem("flipclock.status") === "1";
+    localStorage.setItem("flipclock.status", on ? "0" : "1");
+  } catch {}
+  showStatus();
+});
+document.addEventListener("pointerup", () => { awakeDiag.lastTap = Date.now(); }, true);
+
+let statusEl = null;
+function showStatus() {
+  let on = false;
+  try { on = localStorage.getItem("flipclock.status") === "1"; } catch {}
+  if (!on) { statusEl?.remove(); statusEl = null; return; }
+  if (!statusEl) {
+    statusEl = document.createElement("pre");
+    statusEl.style.cssText =
+      "position:fixed;left:8px;right:8px;top:30%;z-index:9999;margin:0;padding:8px;" +
+      "font:11px/1.4 monospace;color:#0f0;background:rgba(0,0,0,.85);border:1px solid #0f0;" +
+      "pointer-events:none;white-space:pre-wrap";
+    document.body.append(statusEl);
+  }
+  const v = awakeVideo;
+  const ago = (t) => (t ? `${Math.round((Date.now() - t) / 1000)}s ago` : "never");
+  statusEl.textContent = [
+    "KEEP-AWAKE STATUS (tap date 5x to hide)",
+    `standalone app: ${matchMedia("(display-mode: standalone)").matches || navigator.standalone === true}`,
+    `iPhone: ${IS_IOS}   uses video: ${NEEDS_VIDEO}`,
+    `wake lock: ${"wakeLock" in navigator ? (wakeLock ? "HELD" : "not held") : "not supported"}`,
+    `  granted ${awakeDiag.lockOk}x, released ${awakeDiag.lockReleased}x`,
+    `  last error: ${awakeDiag.lockFail || "none"}`,
+    `video: ${!v ? "not created" : v.paused ? "PAUSED" : "PLAYING"}` +
+      (v ? `  t=${v.currentTime.toFixed(2)}s ready=${v.readyState} err=${v.error?.code ?? "none"}` : ""),
+    `  started ${awakeDiag.playOk}x, last error: ${awakeDiag.playFail || "none"}`,
+    `sound: ${audio ? audio.state : "not started"}`,
+    `last tap: ${ago(awakeDiag.lastTap)}`,
+  ].join("\n");
+}
+setInterval(() => { if (statusEl) showStatus(); }, 1000);
+showStatus();
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
