@@ -711,15 +711,48 @@ function keepAwakeWithVideo() {
   if (awakeVideo.paused) awakeVideo.play().catch(() => {});
 }
 
+// Tap-free keep-awake for iPhones: a *muted* video may start on its own, and
+// Safari keeps the screen on while a live video stream plays, even muted.
+// So we play a tiny stream drawn on the phone itself (a 2x2 canvas, redrawn
+// once a second; no internet data). Like the video above, it is never added
+// to the page, so it can't affect the layout.
+let streamVideo = null;
+function keepAwakeWithStream() {
+  if (!IS_IOS || document.visibilityState !== "visible") return;
+  if (!streamVideo) {
+    const canvas = document.createElement("canvas");
+    if (!canvas.captureStream) return;
+    canvas.width = canvas.height = 2;
+    const ctx = canvas.getContext("2d");
+    let flip = false;
+    const draw = () => {
+      flip = !flip;
+      ctx.fillStyle = flip ? "#000" : "#010101";
+      ctx.fillRect(0, 0, 2, 2);
+    };
+    draw();
+    setInterval(() => { if (!document.hidden) draw(); }, 1000);
+
+    streamVideo = document.createElement("video");
+    streamVideo.muted = true;
+    streamVideo.setAttribute("muted", "");
+    streamVideo.setAttribute("playsinline", "");
+    streamVideo.srcObject = canvas.captureStream(1);
+  }
+  if (streamVideo.paused) streamVideo.play().catch(() => {});
+}
+
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     keepAwake();
     keepAwakeWithVideo();
+    keepAwakeWithStream();
     renderWithoutTransitions(); // catch up right away after the phone was locked
   }
 });
 keepAwake();
-setInterval(() => { keepAwake(); keepAwakeWithVideo(); }, 15000); // safety net
+keepAwakeWithStream();
+setInterval(() => { keepAwake(); keepAwakeWithVideo(); keepAwakeWithStream(); }, 15000); // safety net
 
 // Any click or key stops the "time's up" blinking
 function dismissDone() {
@@ -764,7 +797,7 @@ document.addEventListener("mousemove", () => {
 // The end of a tap is what phones count as permission for sound (and
 // sometimes for keeping the screen on), so try both again there.
 ["pointerup", "touchend", "click"].forEach((ev) =>
-  document.addEventListener(ev, () => { unlockAudio(); keepAwake(); keepAwakeWithVideo(); }, { passive: true })
+  document.addEventListener(ev, () => { unlockAudio(); keepAwake(); keepAwakeWithVideo(); keepAwakeWithStream(); }, { passive: true })
 );
 wake();
 
