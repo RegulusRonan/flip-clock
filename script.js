@@ -670,7 +670,7 @@ const canSetTimer = () => state.view === "timer" && !state.timer.running;
 // sometimes on their own), so it's requested again whenever it's lost.
 // What happened while trying to keep the screen on (shown by the status
 // readout: tap the date 5 times)
-const awakeDiag = { lockOk: 0, lockFail: "", lockReleased: 0, playOk: 0, playFail: "", lastTap: 0 };
+const awakeDiag = { lockOk: 0, lockFail: "", lockReleased: 0, playOk: 0, playFail: "", streamOk: 0, streamFail: "", lastTap: 0 };
 
 let wakeLock = null;
 let wakeLockPending = false;
@@ -729,12 +729,57 @@ function keepAwakeWithVideo() {
   }
 }
 
+// Tap-free keep-awake for iPhones. The wake lock and the video above both
+// need a tap first, but a *muted* video may start on its own, and Safari
+// keeps the screen on while a live video stream plays (even muted). So we
+// play a tiny invisible live stream from a 2x2 canvas, redrawn once a second
+// so the stream stays live. It starts as soon as the app opens.
+let streamVideo = null;
+function keepAwakeWithStream() {
+  if (!IS_IOS || document.visibilityState !== "visible") return;
+  if (!streamVideo) {
+    const canvas = document.createElement("canvas");
+    if (!canvas.captureStream) { awakeDiag.streamFail = "not supported"; return; }
+    canvas.width = canvas.height = 2;
+    const ctx = canvas.getContext("2d");
+    let flip = false;
+    const draw = () => {
+      flip = !flip;
+      ctx.fillStyle = flip ? "#000" : "#010101";
+      ctx.fillRect(0, 0, 2, 2);
+    };
+    draw();
+    setInterval(() => { if (!document.hidden) draw(); }, 1000);
+
+    streamVideo = document.createElement("video");
+    streamVideo.muted = true;
+    streamVideo.setAttribute("muted", "");
+    streamVideo.setAttribute("playsinline", "");
+    streamVideo.setAttribute("autoplay", "");
+    streamVideo.srcObject = canvas.captureStream(1);
+    streamVideo.style.cssText =
+      "position:fixed;left:1px;top:0;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:-1";
+    document.body.append(streamVideo);
+  }
+  if (streamVideo.paused) {
+    streamVideo.play()
+      .then(() => { awakeDiag.streamOk++; updateAwakeHint(); })
+      .catch((e) => { awakeDiag.streamFail = `${e.name}: ${e.message}`; });
+  }
+}
+keepAwakeWithStream();
+document.addEventListener("visibilitychange", keepAwakeWithStream);
+setInterval(keepAwakeWithStream, 15000);
+["pointerup", "touchend", "click"].forEach((ev) =>
+  document.addEventListener(ev, keepAwakeWithStream, { passive: true }));
+
 // Phones only allow keep-awake after a tap (the first request, made when the
 // app opens, is refused). Show "Tap to keep screen on" until it's active.
 const awakeHint = document.getElementById("awakeHint");
 function updateAwakeHint() {
   const supported = NEEDS_VIDEO || "wakeLock" in navigator;
-  const active = !!wakeLock || (awakeVideo && !awakeVideo.paused);
+  const active = !!wakeLock || (awakeVideo && !awakeVideo.paused) ||
+    (streamVideo && !streamVideo.paused);
   const show = supported && !active && !document.hidden;
   if (awakeHint.hidden === show) awakeHint.hidden = !show;
 }
@@ -783,6 +828,8 @@ function showStatus() {
     `video: ${!v ? "not created" : v.paused ? "PAUSED" : "PLAYING"}` +
       (v ? `  t=${v.currentTime.toFixed(2)}s ready=${v.readyState} err=${v.error?.code ?? "none"}` : ""),
     `  started ${awakeDiag.playOk}x, last error: ${awakeDiag.playFail || "none"}`,
+    `stream (no tap needed): ${!streamVideo ? "not created" : streamVideo.paused ? "PAUSED" : "PLAYING"}`,
+    `  started ${awakeDiag.streamOk}x, last error: ${awakeDiag.streamFail || "none"}`,
     `sound: ${audio ? audio.state : "not started"}`,
     `last tap: ${ago(awakeDiag.lastTap)}`,
   ].join("\n");
