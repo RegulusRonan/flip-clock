@@ -272,6 +272,23 @@ body.done .card { animation: done-pulse 1s ease-in-out infinite; }
   }
 }
 
+/* "Tap to keep screen on": shown until keep-awake is active */
+.awake-hint {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: max(24px, var(--safe-bottom, env(safe-area-inset-bottom)));
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6f6f6f;
+  pointer-events: none;
+}
+.awake-hint[hidden] { display: none; }
+/* Out of the way while the controls are showing */
+.controls.show ~ .awake-hint { opacity: 0; }
+
 /* ---------- Phones ---------- */
 
 /* Portrait: stack the cards and make them fill the screen.

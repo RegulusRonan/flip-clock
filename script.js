@@ -681,9 +681,11 @@ async function keepAwake() {
   try {
     wakeLock = await navigator.wakeLock.request("screen");
     awakeDiag.lockOk++;
+    updateAwakeHint();
     wakeLock.addEventListener("release", () => {
       wakeLock = null;
       awakeDiag.lockReleased++;
+      updateAwakeHint();
       if (document.visibilityState === "visible") setTimeout(keepAwake, 1000);
     });
   } catch (e) {
@@ -722,10 +724,22 @@ function keepAwakeWithVideo() {
   }
   if (awakeVideo.paused) {
     awakeVideo.play()
-      .then(() => { awakeDiag.playOk++; })
+      .then(() => { awakeDiag.playOk++; updateAwakeHint(); })
       .catch((e) => { awakeDiag.playFail = `${e.name}: ${e.message}`; });
   }
 }
+
+// Phones only allow keep-awake after a tap (the first request, made when the
+// app opens, is refused). Show "Tap to keep screen on" until it's active.
+const awakeHint = document.getElementById("awakeHint");
+function updateAwakeHint() {
+  const supported = NEEDS_VIDEO || "wakeLock" in navigator;
+  const active = !!wakeLock || (awakeVideo && !awakeVideo.paused);
+  const show = supported && !active && !document.hidden;
+  if (awakeHint.hidden === show) awakeHint.hidden = !show;
+}
+updateAwakeHint();
+setInterval(updateAwakeHint, 1000);
 
 // ---------- Keep-awake status readout (tap the date 5 times) ----------
 // Temporary: shows on screen whether the phone accepted the keep-awake
